@@ -44,6 +44,11 @@ async def fillwater(w, filltime=100):
     print(f"{time.ctime()} - [{w.SERIAL}] Waiting for fill water maxinum {filltime} seconds")
     await asyncio.sleep(filltime)
 
+async def waiter(event):
+        print('waiting for it ...')
+        await event.wait()
+        print('... got it!')
+
 class MachineStatus(Enum):
     pressure = round(random.uniform(2000,3000), 2)
     temperature = round(random.uniform(25.0,40.0), 2)
@@ -128,7 +133,7 @@ async def listen(w, client):
                     w.STATE = "OFF"
                 else:
                     print(f"{time.ctime()} - ERROR MQTT [{m_decode['serial']}]:{m_decode['name']} => {m_decode['value']}")
-
+4
 async def main():
     w = WashingMachine(serial='SN-001')
     async with aiomqtt.Client("broker.hivemq.com") as client:

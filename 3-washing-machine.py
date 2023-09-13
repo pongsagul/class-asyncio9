@@ -25,6 +25,10 @@ class MachineMaintStatus():
     # add more maintenance status
     #
 
+async def waiter(w, event):
+        print(f"{time.ctime()} - [{w.SERIAL}-{w.MACHINE_STATUS}] Waiting to start... ")
+        await event.wait()
+        #print('... got it!')
 class WashingMachine:
     def __init__(self, serial):
         self.MACHINE_STATUS = 'OFF'
@@ -42,7 +46,7 @@ class WashingMachine:
         self.MACHINE_STATUS = 'FAULT'
         self.FAULT_TYPE = 'TIMEOUT'
         print(f'{time.ctime()} - [{self.SERIAL}] STATUS: {self.MACHINE_STATUS}')
-
+    
 
     async def waiting_task(self):
         self.task = asyncio.create_task(self.waiting())
@@ -70,11 +74,26 @@ async def publish_message(w, client, app, action, name, value):
     print(f"{time.ctime()} - PUBLISH - [{w.SERIAL}] - {payload['name']} > {payload['value']}")
     await client.publish(f"v1cdti/{app}/{action}/{student_id}/model-01/{w.SERIAL}"
                         , payload=json.dumps(payload))
+    
+    print(f"{time.ctime()} - PUBLISH - [{w.SERIAL}] - {payload['name']} > {payload['value']}")
+    await client.publish(f"v1cdti/{app}/{action}/{student_id}/model-01/{w.SERIAL}"
+                        , payload=json.dumps(payload))
 
 
 async def CoroWashingMachine(w, w_sensor, client):
     # washing coroutine
     while True:
+        #wait_next = round(10*random.random(),2)
+        #await asyncio.sleep(wait_next)
+        # Create an Event object.
+        w.event = asyncio.Event()
+
+        # Spawn a Task to wait until 'event' is set.
+        waiter_task = asyncio.create_task(waiter(w, w.event))
+
+        # Wait until the waiter task is finished.
+        await waiter_task
+
         wait_next = round(10*random.random(),2)
         print(f"{time.ctime()} - [{w.SERIAL}] Waiting new message... {wait_next} seconds.")
         await asyncio.sleep(wait_next)
@@ -117,6 +136,8 @@ async def listen(w, w_sensor, client):
             mgs_decode = json.loads(message.payload)
             if message.topic.matches(f"v1cdti/hw/set/{student_id}/model-01/{w.SERIAL}"):
                 print(f"FROM MQTT: [{mgs_decode['serial']} {mgs_decode['name']} {mgs_decode['value']}]")
+                # Sleep for 1 second and set the event.
+                w.event.set()
 
                 if mgs_decode['name'] == "STATUS":
                     w.MACHINE_STATUS = mgs_decode['value']
@@ -152,6 +173,7 @@ async def listen(w, w_sensor, client):
 async def main():
     w = WashingMachine(serial='SN-001')
     w_sensor = MachineStatus()
+    event = asyncio.Event()
     # async with aiomqtt.Client("test.mosquitto.org") as client:
     async with aiomqtt.Client("broker.hivemq.com") as client:
        await asyncio.gather(listen(w, w_sensor, client), CoroWashingMachine(w, w_sensor, client))
